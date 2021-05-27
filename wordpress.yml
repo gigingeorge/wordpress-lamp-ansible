@@ -1,0 +1,127 @@
+---
+- name: " install apache and PHP and mariadb"
+  yum:
+    name:
+    - httpd
+    - mariadb-server
+    - MySQL-python
+    state: present
+  register: install_status
+- name: "installing PHP"
+  shell: amazon-linux-extras install php7.4 -y
+
+- name: "Configure virtual_host"
+  template:
+    src: httpd.conf.tmpl
+    dest: "/etc/httpd/conf.d/{{domain_name}}.conf"
+  register: conf_status
+- name: "Apache conf"
+  template:
+    src: apache.conf.tmpl
+    dest: "/etc/httpd/httpd.conf"
+  register: conf_status  
+
+- name: "creating document root"
+  file:
+    path: "/var/www/html/{{ domain_name }}"
+    state: directory
+    owner: "{{ user_name }}"
+    group: "{{ group_name }}"
+
+- name : "Syntax check httpd"
+  shell: httpd -t
+  register: syntax_check
+
+- name: "mariadb/Apache - restarting/enabling service"
+  when: install_status.changed == true
+  service:
+    name: {{ item}}
+    state: restarted
+    enabled: true
+  with_items:
+  - httpd
+  - mariadb
+- name: "Mysql configuration"
+  ignore_errors: true
+  mysql_user:
+    login_user: "root"
+    login_password: ""
+    user: "root"
+    password: "{{ mysql_password }}"
+    host_all: true
+  register: password_status
+
+- name: "mariadb - removing anonymous users"
+  mysql_user:
+    login_user: "root"
+    login_password: "{{ mysql_password }}"
+    user: ""
+    state: absent
+
+- name: "Creating database for wordpress"
+  mysql_db:
+    login_user: "root"
+    login_password: "{{ mysql_password }}"
+    name: "{{ wordpress_database }}"
+
+- name: "creating wordpress mysqluser"
+  mysql_user:
+    login_user: "root"
+    login_password: "{{ mysql_password }}"
+    user: "{{ wordpress_user }}"
+    password: "{{ wordpress_pass }}"
+    priv: '{{ wordpress_database }}.*:ALL'
+
+- name: " Creating index.php"
+  copy:
+    content: "<?php phpinfo() ?>"
+    dest: "/var/www/html/{{ domain_name }}/test.php"
+    owner: "{{user_name}}"
+    group: "{{ group_name }}"
+- name: " Download wordpress"
+  get_url:
+    url: "{{ wordpress_url }}"
+    dest: /tmp/wordpress.tar
+
+- name: "extract wordpress"
+  unarchive:
+    src: /tmp/wordpress.tar
+    dest: /tmp/
+    remote_src: true
+- name: "copying wordpress files"
+  copy:
+    src: "/tmp/wordpress/"
+    dest: "/var/www/html/{{ domain_name }}/"
+    remote_src: true
+    owner: "{{user_name}}"
+    group: "{{ group_name }}"
+
+
+- name: copy wp-config file
+  template:
+    src: wp-config.php.tmpl
+    dest: "/var/www/html/{{ domain_name }}/wp-config.php"
+    owner: "{{user_name}}"
+    group: "{{ group_name }}"
+- name: " cleanup"
+  file: 
+    path: "{{ item }}"
+    state: absent
+  with_items:
+  - /tmp/wordpress
+  - /tmp/wordpress.tar
+ 
+- name: "Restart and enable httpd"
+  when : syntax_check.rc == 0 and conf_status.changed == true 
+  service:
+    name: httpd
+    state: restarted
+    enabled: true
+
+- name: " Restart and enable mariadb"
+  when: password_status.changed == true 
+  service:
+    name: mariadb
+    state: restarted
+    enabled: true
+

@@ -1,0 +1,5 @@
+mysql_password: "password"
+wordpress_database: "wordpress"
+wordpress_pass: "wordpress"
+wordpress_user: "wordpress"
+wordpress_url: "https://wordpress.org/wordpress-5.7.2.tar.gz"

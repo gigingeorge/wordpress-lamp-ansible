@@ -1,0 +1,10 @@
+---
+- name: " install lamp on apache"
+  become: true
+  hosts: group 
+  vars_files:
+  - variables.vars
+  - mysqlvariables.var
+  tasks:
+  - include_tasks: wordpress.yml
+
