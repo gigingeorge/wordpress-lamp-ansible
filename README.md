@@ -312,7 +312,6 @@ The entire yml file will be
   template:
     src: apache.conf.tmpl
     dest: "/etc/httpd/httpd.conf"
-  register: conf_status  
 
 - name: "creating document root"
   file:
